@@ -34,6 +34,7 @@ from pyperplan.planner import (
     write_solution,
 )
 
+from pyperplan.search.gbfs_multi import gbfs_multi_search
 
 def main():
     # Commandline parsing
@@ -57,17 +58,26 @@ def main():
     argparser.add_argument(
         "-H",
         "--heuristic",
-        choices=HEURISTICS.keys(),
+        #choices=HEURISTICS.keys(),
         help="Select a heuristic",
         default="hff",
     )
     argparser.add_argument(
         "-s",
         "--search",
-        choices=SEARCHES.keys(),
+        choices=list(SEARCHES.keys()) + ["gbfs_multi"],
         help=f"Select a search algorithm from {search_names}",
         default="bfs",
     )
+
+    #gbfs_multi additions 
+    argparser.add_argument(
+        "-openlist",
+        choices=["single", "max", "sum", "alternation", "pareto"],
+        default="single",
+        help="Open list strategy",
+    )
+
     args = argparser.parse_args()
 
     logging.basicConfig(
@@ -92,22 +102,61 @@ def main():
     else:
         args.domain = os.path.abspath(args.domain)
 
-    search = SEARCHES[args.search]
-    heuristic = HEURISTICS[args.heuristic]
+    search = SEARCHES.get(args.search)
+    #heuristic = HEURISTICS.get(args.heuristic)
+    if args.search != "gbfs_multi":
+        if args.heuristic not in HEURISTICS:
+            raise ValueError(f"Invalid heuristic: {args.heuristic}")
+        heuristic = HEURISTICS[args.heuristic]
+    else:
+        heuristic = None
 
     if args.search in ["bfs", "ids", "sat"]:
         heuristic = None
 
-    logging.info("using search: %s" % search.__name__)
-    logging.info("using heuristic: %s" % (heuristic.__name__ if heuristic else None))
+    logging.info("using search: %s" % (search.__name__ if search else args.search))
+    #logging.info("using heuristic: %s" % (heuristic.__name__ if heuristic else None))
     use_preferred_ops = args.heuristic == "hffpo"
-    solution = search_plan(
-        args.domain,
-        args.problem,
-        search,
-        heuristic,
-        use_preferred_ops=use_preferred_ops,
-    )
+
+    #gbfs_multi additions 
+    if args.search == "gbfs_multi":
+        from pyperplan.planner import _parse, _ground
+        
+        # Parse multiple heuristics
+        h_names = args.heuristic.split(",")
+        heuristics = []
+        for h in h_names:
+            if h not in HEURISTICS:
+                raise ValueError(f"Invalid heuristic '{h}'. Choose from: {', '.join(HEURISTICS.keys())}")
+            heuristics.append(HEURISTICS[h])
+        
+        logging.info("using heuristics: %s" % ", ".join(h_names))
+        logging.info("open list strategy: %s" % args.openlist)
+
+        # Build task
+        task = _ground(_parse(args.domain, args.problem))
+
+        # Instantiate heuristic objects
+        heuristic_objects = [h(task) for h in heuristics]
+
+        # Run multi-heuristic GBFS
+        result = gbfs_multi_search(task, heuristic_objects, args.openlist)
+
+        if not result.solved:
+            solution = None
+        else:
+            solution = result.solution
+            #logging.info("Plan length: %s" % result.plan_length)
+            #logging.info("Nodes expanded: %s" % result.expansions)
+
+    else:
+        solution = search_plan(
+            args.domain,
+            args.problem,
+            search,
+            heuristic,
+            use_preferred_ops=use_preferred_ops,
+        )
 
     if solution is None:
         logging.warning("No solution could be found")

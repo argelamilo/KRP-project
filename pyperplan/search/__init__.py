@@ -18,6 +18,9 @@
 from .a_star import astar_search as astar_search
 from .a_star import greedy_best_first_search as greedy_best_first_search
 from .a_star import weighted_astar_search as weighted_astar_search
+#add for gbfs multi
+from .gbfs_multi import gbfs_multi_search as gbfs_multi_search
+
 from .breadth_first_search import breadth_first_search as breadth_first_search
 from .enforced_hillclimbing_search import (
     enforced_hillclimbing_search as enforced_hillclimbing_search,
