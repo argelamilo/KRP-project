@@ -22,7 +22,6 @@ from collections import namedtuple
 
 from . import searchspace
 
-
 SearchResult = namedtuple(
     "SearchResult",
     ["solution", "expansions", "evaluations", "generated", "plan_length", "solved"]
@@ -193,6 +192,9 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
 
     n = len(heuristics)
 
+    if open_list_type == "single" and n > 1:
+        raise ValueError("Single open list supports only one heuristic.")
+
     open_list  = make_open_list(open_list_type, n)
     state_cost = {task.initial_state: 0}
     expansions = 0
@@ -202,10 +204,18 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
     root   = searchspace.make_root_node(task.initial_state)
     init_h = _evaluate(root, heuristics)
     evaluations += 1
-
-    if all(h == float("inf") for h in init_h): #pruning if all heuristics considers it a dead end
+    
+    #pruning if all heuristics considers it a dead end
+    if all(h == float("inf") for h in init_h): 
         logging.info("Initial state is a dead end.")
-        return SearchResult(solution=None, expansions=0, evaluations=evaluations, generated=0, plan_length=None, solved=False)
+        return SearchResult(
+            solution=None, 
+            expansions=0, 
+            evaluations=evaluations, 
+            generated=0, 
+            plan_length=None, 
+            solved=False
+        )
 
     open_list.push(root, init_h)
     generated += 1
@@ -252,7 +262,14 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
                 generated += 1
 
     logging.info(f"No solution found. Expansions: {expansions}")
-    return SearchResult(solution=None, expansions=expansions, evaluations=evaluations, generated=generated, plan_length=None, solved=False)
+    return SearchResult(
+        solution=None, 
+        expansions=expansions, 
+        evaluations=evaluations, 
+        generated=generated, 
+        plan_length=None, 
+        solved=False
+    )
 
 
 def _evaluate(node, heuristics):

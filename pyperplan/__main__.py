@@ -33,8 +33,8 @@ from pyperplan.planner import (
     validate_solution,
     write_solution,
 )
-
 from pyperplan.search.gbfs_multi import gbfs_multi_search
+
 
 def main():
     # Commandline parsing
@@ -120,14 +120,17 @@ def main():
 
     #gbfs_multi additions 
     if args.search == "gbfs_multi":
-        from pyperplan.planner import _parse, _ground
+        from pyperplan.planner import _ground, _parse
         
         # Parse multiple heuristics
         h_names = args.heuristic.split(",")
         heuristics = []
         for h in h_names:
             if h not in HEURISTICS:
-                raise ValueError(f"Invalid heuristic '{h}'. Choose from: {', '.join(HEURISTICS.keys())}")
+                raise ValueError(
+                    f"Invalid heuristic '{h}'. Choose from: "
+                    f"{', '.join(HEURISTICS.keys())}"
+                )
             heuristics.append(HEURISTICS[h])
         
         logging.info("using heuristics: %s" % ", ".join(h_names))
