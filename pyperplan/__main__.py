@@ -58,7 +58,7 @@ def main():
     argparser.add_argument(
         "-H",
         "--heuristic",
-        #choices=HEURISTICS.keys(),
+        # choices=HEURISTICS.keys(),
         help="Select a heuristic",
         default="hff",
     )
@@ -70,7 +70,7 @@ def main():
         default="bfs",
     )
 
-    #gbfs_multi additions 
+    # gbfs_multi additions
     argparser.add_argument(
         "-openlist",
         choices=["single", "max", "sum", "alternation", "pareto"],
@@ -103,7 +103,7 @@ def main():
         args.domain = os.path.abspath(args.domain)
 
     search = SEARCHES.get(args.search)
-    #heuristic = HEURISTICS.get(args.heuristic)
+    # heuristic = HEURISTICS.get(args.heuristic)
     if args.search != "gbfs_multi":
         if args.heuristic not in HEURISTICS:
             raise ValueError(f"Invalid heuristic: {args.heuristic}")
@@ -115,13 +115,13 @@ def main():
         heuristic = None
 
     logging.info("using search: %s" % (search.__name__ if search else args.search))
-    #logging.info("using heuristic: %s" % (heuristic.__name__ if heuristic else None))
+    # logging.info("using heuristic: %s" % (heuristic.__name__ if heuristic else None))
     use_preferred_ops = args.heuristic == "hffpo"
 
-    #gbfs_multi additions 
+    # gbfs_multi additions
     if args.search == "gbfs_multi":
         from pyperplan.planner import _ground, _parse
-        
+
         # Parse multiple heuristics
         h_names = args.heuristic.split(",")
         heuristics = []
@@ -132,7 +132,7 @@ def main():
                     f"{', '.join(HEURISTICS.keys())}"
                 )
             heuristics.append(HEURISTICS[h])
-        
+
         logging.info("using heuristics: %s" % ", ".join(h_names))
         logging.info("open list strategy: %s" % args.openlist)
 
@@ -149,8 +149,8 @@ def main():
             solution = None
         else:
             solution = result.solution
-            #logging.info("Plan length: %s" % result.plan_length)
-            #logging.info("Nodes expanded: %s" % result.expansions)
+            # logging.info("Plan length: %s" % result.plan_length)
+            # logging.info("Nodes expanded: %s" % result.expansions)
 
     else:
         solution = search_plan(

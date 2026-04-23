@@ -24,12 +24,11 @@ from . import searchspace
 
 SearchResult = namedtuple(
     "SearchResult",
-    ["solution", "expansions", "evaluations", "generated", "plan_length", "solved"]
+    ["solution", "expansions", "evaluations", "generated", "plan_length", "solved"],
 )
 
 
-
-#Open list implementations
+# Open list implementations
 class SingleOpenList:
     """
     Baseline open list. Equivalent to standard single-heuristic GBFS.
@@ -52,7 +51,7 @@ class SingleOpenList:
 
 
 class MaxOpenList:
-    #Orders nodes by max(h_values).
+    # Orders nodes by max(h_values).
 
     def __init__(self):
         self._heap = []
@@ -71,7 +70,7 @@ class MaxOpenList:
 
 
 class SumOpenList:
-    #Orders nodes by sum(h_values).
+    # Orders nodes by sum(h_values).
 
     def __init__(self):
         self._heap = []
@@ -90,7 +89,6 @@ class SumOpenList:
 
 
 class AlternationOpenList:
-
     def __init__(self, n_heuristics):
         self._queues = [[] for _ in range(n_heuristics)]
         self._n = n_heuristics
@@ -122,12 +120,12 @@ class AlternationOpenList:
 class ParetoOpenList:
     """
     Pareto frontier open list.
-    
+
     Only keeps states that are not dominated by others.
     A state s1 dominates s2 if:
     - h_i(s1) <= h_i(s2) for all heuristics i, AND
     - h_j(s1) < h_j(s2) for at least one heuristic j
-    
+
     Selection strategy: FIFO (First In, First Out)
     """
 
@@ -146,8 +144,7 @@ class ParetoOpenList:
                 return
 
         self._frontier = [
-            (h, n) for h, n in self._frontier
-            if not self._dominates(h_values, h)
+            (h, n) for h, n in self._frontier if not self._dominates(h_values, h)
         ]
 
         self._frontier.append((h_values, node))
@@ -179,14 +176,13 @@ def make_open_list(open_list_type, n_heuristics):
         return ParetoOpenList(n_heuristics)
     else:
         raise ValueError(
-            f"Unknown open list type '{open_list_type}'. "
-            f"Choose from: {OPEN_LIST_TYPES}"
+            f"Unknown open list type '{open_list_type}'. Choose from: {OPEN_LIST_TYPES}"
         )
 
 
 # Search function
 def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
-    
+
     if not isinstance(heuristics, list):
         heuristics = [heuristics]
 
@@ -195,26 +191,26 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
     if open_list_type == "single" and n > 1:
         raise ValueError("Single open list supports only one heuristic.")
 
-    open_list  = make_open_list(open_list_type, n)
+    open_list = make_open_list(open_list_type, n)
     state_cost = {task.initial_state: 0}
     expansions = 0
     evaluations = 0
     generated = 0
 
-    root   = searchspace.make_root_node(task.initial_state)
+    root = searchspace.make_root_node(task.initial_state)
     init_h = _evaluate(root, heuristics)
     evaluations += 1
-    
-    #pruning if all heuristics considers it a dead end
-    if all(h == float("inf") for h in init_h): 
+
+    # pruning if all heuristics considers it a dead end
+    if all(h == float("inf") for h in init_h):
         logging.info("Initial state is a dead end.")
         return SearchResult(
-            solution=None, 
-            expansions=0, 
-            evaluations=evaluations, 
-            generated=0, 
-            plan_length=None, 
-            solved=False
+            solution=None,
+            expansions=0,
+            evaluations=evaluations,
+            generated=0,
+            plan_length=None,
+            solved=False,
         )
 
     open_list.push(root, init_h)
@@ -245,10 +241,9 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
                 solved=True,
             )
 
-
         for op, succ_state in task.get_successor_states(node.state):
             succ_node = searchspace.make_child_node(node, op, succ_state)
-            succ_h    = _evaluate(succ_node, heuristics)
+            succ_h = _evaluate(succ_node, heuristics)
             evaluations += 1
 
             # Prune if ALL heuristics agree the state is a dead end.
@@ -263,12 +258,12 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
 
     logging.info(f"No solution found. Expansions: {expansions}")
     return SearchResult(
-        solution=None, 
-        expansions=expansions, 
-        evaluations=evaluations, 
-        generated=generated, 
-        plan_length=None, 
-        solved=False
+        solution=None,
+        expansions=expansions,
+        evaluations=evaluations,
+        generated=generated,
+        plan_length=None,
+        solved=False,
     )
 
 

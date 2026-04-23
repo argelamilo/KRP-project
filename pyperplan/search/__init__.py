@@ -23,7 +23,7 @@ from .enforced_hillclimbing_search import (
     enforced_hillclimbing_search as enforced_hillclimbing_search,
 )
 
-#add for gbfs multi
+# add for gbfs multi
 from .gbfs_multi import gbfs_multi_search as gbfs_multi_search
 from .iterative_deepening_search import (
     iterative_deepening_search as iterative_deepening_search,
