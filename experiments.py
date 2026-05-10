@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import subprocess
-import time
 import csv
 import re
+import subprocess
 import sys
-from pathlib import Path
+import time
 from datetime import datetime
+from pathlib import Path
 
 BENCHMARKS_DIR = Path("benchmarks")
 RESULTS_DIR = Path("experiment_results")
@@ -145,10 +145,15 @@ def experiment_2():
     if choice not in strategy_map:
         print("Invalid choice: running all strategies.")
 
-    pairs = [('hff', 'hadd'), ('hmax', 'lmcut'), ('hff', 'landmark'), ('landmark', 'lmcut')]
+    pairs = [
+    ('hff', 'hadd'), ('hmax', 'lmcut'),
+    ('hff', 'landmark'), ('landmark', 'lmcut'),
+    ]
 
     strategy_suffix = strategies[0] if len(strategies) == 1 else 'all'
-    filename = RESULTS_DIR / f"exp2_{strategy_suffix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = RESULTS_DIR / (
+    f"exp2_{strategy_suffix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    )
 
     fieldnames = [
         'domain', 'problem', 'heuristics', 'strategy',
