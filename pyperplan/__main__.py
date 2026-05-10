@@ -23,6 +23,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 
 from pyperplan import tools
 from pyperplan.planner import (
@@ -115,7 +116,9 @@ def main():
         heuristic = None
 
     logging.info("using search: %s" % (search.__name__ if search else args.search))
-    # logging.info("using heuristic: %s" % (heuristic.__name__ if heuristic else None))
+    if args.search != "gbfs_multi":
+        heuristic_name = heuristic.__name__ if heuristic else None
+        logging.info("using heuristic: %s" % heuristic_name)
     use_preferred_ops = args.heuristic == "hffpo"
 
     # gbfs_multi additions
@@ -133,24 +136,28 @@ def main():
                 )
             heuristics.append(HEURISTICS[h])
 
-        logging.info("using heuristics: %s" % ", ".join(h_names))
+        logging.info("using heuristics: %s" % ", ".join(h.__name__ for h in heuristics))
         logging.info("open list strategy: %s" % args.openlist)
 
         # Build task
+        overall_start = time.process_time()
         task = _ground(_parse(args.domain, args.problem))
 
         # Instantiate heuristic objects
         heuristic_objects = [h(task) for h in heuristics]
 
         # Run multi-heuristic GBFS
+        search_start = time.process_time()
         result = gbfs_multi_search(task, heuristic_objects, args.openlist)
+        logging.info("Search time: {:.2f}".format(time.process_time() - search_start))
+        logging.info("Overall time: {:.2f}".format(time.process_time() - overall_start))
 
         if not result.solved:
             solution = None
         else:
             solution = result.solution
-            # logging.info("Plan length: %s" % result.plan_length)
-            # logging.info("Nodes expanded: %s" % result.expansions)
+            logging.info("Goal reached.")
+            logging.info("Nodes expanded: %s" % result.expansions)
 
     else:
         solution = search_plan(
