@@ -29,10 +29,11 @@ SearchResult = namedtuple(
 
 # Open list implementations
 
+
 class SingleOpenList:
     """
     Standard single-heuristic GBFS open list.
-    Orders states by h(s); 
+    Orders states by h(s);
     Ties broken by insertion order (FIFO).
     """
 
@@ -138,16 +139,17 @@ class ParetoOpenList:
     State s dominates s' if:
       h_i(s) <= h_i(s')  for all i, AND
       h_j(s) <  h_j(s')  for at least one j.
-      
+
     Pop selects uniformly at random.
-"""
+    """
 
     def __init__(self):
-        self._frontier = []   # list of (h_values_tuple, node)
+        self._frontier = []  # list of (h_values_tuple, node)
 
     def _dominates(self, h1, h2):
-        return (all(v1 <= v2 for v1, v2 in zip(h1, h2)) and
-                any(v1 <  v2 for v1, v2 in zip(h1, h2)))
+        return all(v1 <= v2 for v1, v2 in zip(h1, h2)) and any(
+            v1 < v2 for v1, v2 in zip(h1, h2)
+        )
 
     def push(self, node, h_values):
         h_values = tuple(h_values)
@@ -159,8 +161,7 @@ class ParetoOpenList:
 
         # Remove existing members that the new node dominates.
         self._frontier = [
-            (h, n) for h, n in self._frontier
-            if not self._dominates(h_values, h)
+            (h, n) for h, n in self._frontier if not self._dominates(h_values, h)
         ]
 
         self._frontier.append((h_values, node))
@@ -196,19 +197,19 @@ def make_open_list(open_list_type, n_heuristics):
         return ParetoOpenList()
     else:
         raise ValueError(
-            f"Unknown open list type '{open_list_type}'. "
-            f"Choose from: {OPEN_LIST_TYPES}"
+            f"Unknown open list type '{open_list_type}'. Choose from: {OPEN_LIST_TYPES}"
         )
 
 
 # Search algorithm
+
 
 def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
     """
     Greedy Best-First Search with multiple heuristics.
 
     All open list variants share the same graph-search loop. A closed set
-    guarantees each state is expanded at most once. GBFS is not optimal, 
+    guarantees each state is expanded at most once. GBFS is not optimal,
     so we don't need to track g-values or f-values.
     """
     if not isinstance(heuristics, list):
@@ -220,19 +221,18 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
         raise ValueError("Single open list supports only one heuristic.")
 
     open_list = make_open_list(open_list_type, n)
-    
-    #Closed set: states already expanded, each at most once.
+
+    # Closed set: states already expanded, each at most once.
     closed = set()
     expansions = 0
 
     root = searchspace.make_root_node(task.initial_state)
     init_h = _evaluate(root, heuristics)
 
-    #Prune if all heuristics agree the initial state is a dead end.
+    # Prune if all heuristics agree the initial state is a dead end.
     if all(h == float("inf") for h in init_h):
         logging.info("Initial state is a dead end.")
-        return SearchResult(solution=None, expansions=0,
-                            plan_length=None, solved=False)
+        return SearchResult(solution=None, expansions=0, plan_length=None, solved=False)
 
     open_list.push(root, init_h)
 
@@ -250,25 +250,27 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
         if task.goal_reached(node.state):
             sol = node.extract_solution()
 
-            return SearchResult(solution=sol, expansions=expansions,
-                                plan_length=len(sol), solved=True)
+            return SearchResult(
+                solution=sol, expansions=expansions, plan_length=len(sol), solved=True
+            )
 
         for op, succ_state in task.get_successor_states(node.state):
-            #Skip already-expanded states 
+            # Skip already-expanded states
             if succ_state in closed:
                 continue
 
             succ_node = searchspace.make_child_node(node, op, succ_state)
             succ_h = _evaluate(succ_node, heuristics)
 
-            #Prune only if ALL heuristics agree the state is a dead end.
+            # Prune only if ALL heuristics agree the state is a dead end.
             if all(h == float("inf") for h in succ_h):
                 continue
 
             open_list.push(succ_node, succ_h)
 
-    return SearchResult(solution=None, expansions=expansions,
-                        plan_length=None, solved=False)
+    return SearchResult(
+        solution=None, expansions=expansions, plan_length=None, solved=False
+    )
 
 
 def _evaluate(node, heuristics):

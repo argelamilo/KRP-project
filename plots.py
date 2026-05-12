@@ -5,7 +5,7 @@ Three plots are produced:
   1. Cactus plot  - coverage over time, all strategies on hFF + hLM pair
                    with hFF and hLM as individual baselines.
   2. Heatmap      - problems solved per strategy per domain.
-  3. Bar chart    - coverage with runtime annotated for 2 heuristics 
+  3. Bar chart    - coverage with runtime annotated for 2 heuristics
                    vs 3 heuristics configs.
 """
 
@@ -25,12 +25,12 @@ DOMAINS = ["blocks", "logistics", "zenotravel", "parcprinter", "sokoban"]
 MAIN_PAIR = "hff,landmark"
 
 Q1_STYLES = {
-    "hFF":                    ("#888780", "--", "o"),
-    "hLM":                    ("#444441", "--", "s"),
-    "Alternation (hFF, hLM)": ("#1D9E75", "-",  "o"),
-    "Max (hFF, hLM)":         ("#185FA5", "-",  "s"),
-    "Sum (hFF, hLM)":         ("#BA7517", "-",  "^"),
-    "Pareto (hFF, hLM)":      ("#D4537E", "-",  "D"),
+    "hFF": ("#888780", "--", "o"),
+    "hLM": ("#444441", "--", "s"),
+    "Alternation (hFF, hLM)": ("#1D9E75", "-", "o"),
+    "Max (hFF, hLM)": ("#185FA5", "-", "s"),
+    "Sum (hFF, hLM)": ("#BA7517", "-", "^"),
+    "Pareto (hFF, hLM)": ("#D4537E", "-", "D"),
 }
 
 HEATMAP_LABELS = {
@@ -51,6 +51,7 @@ Q3_CONFIGS = [
 
 
 # Data loading
+
 
 def latest(pattern: str) -> Path | None:
     files = sorted(
@@ -83,9 +84,7 @@ def load_data() -> dict:
     exp3 = latest("exp3_*.csv")
     if exp3:
         df3 = pd.read_csv(exp3)
-        dfs["Alternation (hAdd, hFF, hLM)"] = df3[
-            df3["strategy"] == "alternation"
-        ]
+        dfs["Alternation (hAdd, hFF, hLM)"] = df3[df3["strategy"] == "alternation"]
         dfs["Max (hAdd, hFF, hLM)"] = df3[df3["strategy"] == "max"]
 
     return dfs
@@ -93,16 +92,23 @@ def load_data() -> dict:
 
 # Shared helper
 
+
 def draw_cactus(ax, times, label, color, linestyle="-"):
     counts = list(range(1, len(times) + 1))
     ax.step(
-        times, counts, where="post", color=color,
-        linewidth=1.5, linestyle=linestyle, label=label,
+        times,
+        counts,
+        where="post",
+        color=color,
+        linewidth=1.5,
+        linestyle=linestyle,
+        label=label,
     )
     ax.plot(times[-1], counts[-1], "o", color=color, markersize=5)
 
 
 # Plot 1: Cactus plot - coverage over time
+
 
 def plot_coverage_over_time(dfs: dict) -> None:
     fig, ax = plt.subplots(figsize=(9, 5))
@@ -118,12 +124,26 @@ def plot_coverage_over_time(dfs: dict) -> None:
         times = solved["time"].values
         counts = list(range(1, len(times) + 1))
 
-        ax.step(times, counts, where="post", color=color,
-                linewidth=0.8, linestyle=linestyle, label=label)
+        ax.step(
+            times,
+            counts,
+            where="post",
+            color=color,
+            linewidth=0.8,
+            linestyle=linestyle,
+            label=label,
+        )
 
-        ax.plot(times[::15], counts[::15], marker=marker,
-                color=color, markersize=5, linestyle="none",
-                markerfacecolor="none", markeredgewidth=1.2)
+        ax.plot(
+            times[::15],
+            counts[::15],
+            marker=marker,
+            color=color,
+            markersize=5,
+            linestyle="none",
+            markerfacecolor="none",
+            markeredgewidth=1.2,
+        )
 
         endpoints.append((times[-1], counts[-1], str(counts[-1]), color))
 
@@ -164,6 +184,7 @@ def plot_coverage_over_time(dfs: dict) -> None:
 
 # Plot 2: Heatmap
 
+
 def plot_heatmap(dfs: dict) -> None:
     tasks_per_domain = {}
     if "hFF" in dfs:
@@ -175,9 +196,7 @@ def plot_heatmap(dfs: dict) -> None:
         df = dfs.get(key)
         if df is None:
             continue
-        rows[display] = [
-            int(df[df["domain"] == d]["solved"].sum()) for d in DOMAINS
-        ]
+        rows[display] = [int(df[df["domain"] == d]["solved"].sum()) for d in DOMAINS]
 
     matrix = pd.DataFrame(rows, index=DOMAINS).T
 
@@ -217,6 +236,7 @@ def plot_heatmap(dfs: dict) -> None:
 
 # Plot 3: Coverage bar chart with runtime annotated
 
+
 def plot_heuristic_scaling(dfs: dict) -> None:
     """Bar chart: coverage for each config, mean runtime shown on each bar."""
     labels = [label for label, _ in Q3_CONFIGS]
@@ -244,21 +264,28 @@ def plot_heuristic_scaling(dfs: dict) -> None:
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 0.5,
             str(cov),
-            ha="center", va="bottom", fontsize=11, fontweight="bold",
+            ha="center",
+            va="bottom",
+            fontsize=11,
+            fontweight="bold",
         )
         # Mean runtime inside the bar
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() / 2,
             f"avg {rt:.1f}s",
-            ha="center", va="center", fontsize=9, color="white",
+            ha="center",
+            va="center",
+            fontsize=9,
+            color="white",
             fontweight="bold",
         )
 
     ax.set_ylabel("Problems solved (out of 143)", fontsize=12)
     ax.set_title(
         "Does adding a third heuristic improve performance?",
-        fontsize=13, pad=12,
+        fontsize=13,
+        pad=12,
     )
     ax.set_ylim(0, 150)
     ax.tick_params(axis="x", labelsize=10)
@@ -266,13 +293,13 @@ def plot_heuristic_scaling(dfs: dict) -> None:
     ax.spines[["top", "right"]].set_visible(False)
 
     plt.tight_layout()
-    plt.savefig(PLOTS_DIR / "heuristic_scaling.png", dpi=200,
-                bbox_inches="tight")
+    plt.savefig(PLOTS_DIR / "heuristic_scaling.png", dpi=200, bbox_inches="tight")
     plt.close()
     print("Saved heuristic_scaling.png")
 
 
 # Main
+
 
 def main() -> None:
     dfs = load_data()
