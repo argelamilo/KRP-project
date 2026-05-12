@@ -208,9 +208,8 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
     Greedy Best-First Search with multiple heuristics.
 
     All open list variants share the same graph-search loop. A closed set
-    guarantees each state is expanded at most once. state_cost tracks the
-    best known g-value per state to avoid pushing inferior duplicate paths
-    onto the open list.
+    guarantees each state is expanded at most once. GBFS is not optimal, 
+    so we don't need to track g-values or f-values.
     """
     if not isinstance(heuristics, list):
         heuristics = [heuristics]
@@ -221,9 +220,7 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
         raise ValueError("Single open list supports only one heuristic.")
 
     open_list = make_open_list(open_list_type, n)
-    #Best g seen so far per state: used only to suppress inferior duplicates
-    #from entering the open list. Correctness is handled by the closed set.
-    state_cost = {task.initial_state: 0}
+    
     #Closed set: states already expanded, each at most once.
     closed = set()
     expansions = 0
@@ -268,11 +265,7 @@ def gbfs_multi_search(task, heuristics, open_list_type="alternation"):
             if all(h == float("inf") for h in succ_h):
                 continue
 
-            #Only push if we found a better path to succ_state.
-            old_g = state_cost.get(succ_state, float("inf"))
-            if succ_node.g < old_g:
-                state_cost[succ_state] = succ_node.g
-                open_list.push(succ_node, succ_h)
+            open_list.push(succ_node, succ_h)
 
     return SearchResult(solution=None, expansions=expansions,
                         plan_length=None, solved=False)

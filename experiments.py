@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import csv
 import re
 import subprocess
@@ -125,7 +124,7 @@ def experiment_2():
     print("EXPERIMENT 2: Two Heuristics")
     print("=" * 70)
 
-    print("\nChoose strategy to run:")
+    print("\nChoose multi-heuristic strategy to run:")
     print("  1. Max")
     print("  2. Sum")
     print("  3. Alternation")

@@ -1,220 +1,289 @@
 #!/usr/bin/env python3
+"""Generate experiment plots for the multi-heuristic GBFS project.
+
+Three plots are produced:
+  1. Cactus plot  - coverage over time, all strategies on hFF + hLM pair
+                   with hFF and hLM as individual baselines.
+  2. Heatmap      - problems solved per strategy per domain.
+  3. Bar chart    - coverage with runtime annotated for 2 heuristics 
+                   vs 3 heuristics configs.
+"""
+
 import glob
 import sys
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.lines as mlines
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
 RESULTS_DIR = Path("experiment_results")
-PLOTS_DIR   = Path("plots")
+PLOTS_DIR = Path("plots")
 PLOTS_DIR.mkdir(exist_ok=True)
 
+DOMAINS = ["blocks", "logistics", "zenotravel", "parcprinter", "sokoban"]
 MAIN_PAIR = "hff,landmark"
-SINGLE    = "hadd"
-DOMAINS   = ['blocks', 'logistics', 'zenotravel', 'parcprinter', 'sokoban']
-PAIRS     = ['hff,hadd', 'hmax,lmcut', 'hff,landmark', 'landmark,lmcut']
-PAIR_LABELS = {
-    "hff,hadd":       "hFF + hAdd",
-    "hmax,lmcut":     "hMax + LMcut",
-    "hff,landmark":   "hFF + hLM",
-    "landmark,lmcut": "hLM + LMcut",
+
+Q1_STYLES = {
+    "hFF":                    ("#888780", "--", "o"),
+    "hLM":                    ("#444441", "--", "s"),
+    "Alternation (hFF, hLM)": ("#1D9E75", "-",  "o"),
+    "Max (hFF, hLM)":         ("#185FA5", "-",  "s"),
+    "Sum (hFF, hLM)":         ("#BA7517", "-",  "^"),
+    "Pareto (hFF, hLM)":      ("#D4537E", "-",  "D"),
 }
 
-STRATEGY_STYLE = {
-    "Single (hAdd)": {"color": "#5F5E5A", "lw": 0.8, "dash": (5, 3), "zorder": 2, "marker": "o", "ms": 3},
-    "Alternation":   {"color": "#1D9E75", "lw": 0.8, "dash": (),      "zorder": 5, "marker": "s", "ms": 3},
-    "Max":           {"color": "#378ADD", "lw": 0.8, "dash": (4, 2),  "zorder": 4, "marker": "^", "ms": 3},
-    "Sum":           {"color": "#BA7517", "lw": 0.8, "dash": (8, 3),  "zorder": 3, "marker": "D", "ms": 3},
-    "Pareto":        {"color": "#D4537E", "lw": 0.8, "dash": (2, 2),  "zorder": 1, "marker": "x", "ms": 3},
+HEATMAP_LABELS = {
+    "hFF": "Single (hFF)",
+    "hLM": "Single (hLM)",
+    "Alternation (hFF, hLM)": "Alternation",
+    "Max (hFF, hLM)": "Max",
+    "Sum (hFF, hLM)": "Sum",
+    "Pareto (hFF, hLM)": "Pareto",
 }
 
-PAIR_STYLE = {
-    "hff,hadd":       {"color": "#5F5E5A", "lw": 0.8, "dash": (5, 3), "marker": "o", "ms": 3},
-    "hmax,lmcut":     {"color": "#378ADD", "lw": 0.8, "dash": (4, 2), "marker": "^", "ms": 3},
-    "hff,landmark":   {"color": "#1D9E75", "lw": 0.8, "dash": (),     "marker": "s", "ms": 3},
-    "landmark,lmcut": {"color": "#BA7517", "lw": 0.8, "dash": (8, 3), "marker": "D", "ms": 3},
-}
+Q3_CONFIGS = [
+    ("Alternation (hFF, hLM)", "#1D9E75"),
+    ("Alternation (hAdd, hFF, hLM)", "#0F6E56"),
+    ("Max (hFF, hLM)", "#378ADD"),
+    ("Max (hAdd, hFF, hLM)", "#185FA5"),
+]
 
 
-def latest(pattern):
-    files = sorted(glob.glob(str(RESULTS_DIR / pattern)), key=lambda f: Path(f).stat().st_mtime)
+# Data loading
+
+def latest(pattern: str) -> Path | None:
+    files = sorted(
+        glob.glob(str(RESULTS_DIR / pattern)),
+        key=lambda f: Path(f).stat().st_mtime,
+    )
     return Path(files[-1]) if files else None
 
 
-def load_all():
+def load_data() -> dict:
     dfs = {}
+
     exp1 = latest("exp1_*.csv")
     if exp1:
         df = pd.read_csv(exp1)
-        single = df[df["heuristic"] == SINGLE].copy()
-        single["heuristics"] = SINGLE
-        dfs["Single (hAdd)"] = single
-    for label, pattern in [("Alternation", "exp2_alternation_*.csv"), ("Max", "exp2_max_*.csv"),
-                            ("Sum", "exp2_sum_*.csv"), ("Pareto", "exp2_pareto_*.csv")]:
+        dfs["hFF"] = df[df["heuristic"] == "hff"].copy()
+        dfs["hLM"] = df[df["heuristic"] == "landmark"].copy()
+
+    for key, pattern in [
+        ("Alternation (hFF, hLM)", "exp2_alternation_*.csv"),
+        ("Max (hFF, hLM)", "exp2_max_*.csv"),
+        ("Sum (hFF, hLM)", "exp2_sum_*.csv"),
+        ("Pareto (hFF, hLM)", "exp2_pareto_*.csv"),
+    ]:
         path = latest(pattern)
         if path:
-            dfs[label] = pd.read_csv(path)
+            df = pd.read_csv(path)
+            dfs[key] = df[df["heuristics"] == MAIN_PAIR]
+
+    exp3 = latest("exp3_*.csv")
+    if exp3:
+        df3 = pd.read_csv(exp3)
+        dfs["Alternation (hAdd, hFF, hLM)"] = df3[
+            df3["strategy"] == "alternation"
+        ]
+        dfs["Max (hAdd, hFF, hLM)"] = df3[df3["strategy"] == "max"]
+
     return dfs
 
 
-def cactus(ax, times, label, style):
+# Shared helper
+
+def draw_cactus(ax, times, label, color, linestyle="-"):
     counts = list(range(1, len(times) + 1))
-    ls = (0, style["dash"]) if style["dash"] else "solid"
-    ax.step(times, counts, where="post", color=style["color"], lw=style["lw"],
-            linestyle=ls, zorder=style.get("zorder", 2), label=label)
-    step = max(1, len(counts) // 15)
-    ax.plot(times[::step], counts[::step], marker=style["marker"], color=style["color"],
-            ms=style["ms"], linestyle="none", zorder=style.get("zorder", 2) + 1)
-    ax.plot(times[-1], counts[-1], marker=style["marker"], color=style["color"],
-            ms=style["ms"], linestyle="none", zorder=style.get("zorder", 2) + 1)
-    ax.annotate(f"{counts[-1]}", xy=(times[-1], counts[-1]),
-                xytext=(5, 2), textcoords="offset points",
-                fontsize=9, color=style["color"], va="bottom")
+    ax.step(
+        times, counts, where="post", color=color,
+        linewidth=1.5, linestyle=linestyle, label=label,
+    )
+    ax.plot(times[-1], counts[-1], "o", color=color, markersize=5)
 
 
-def legend_handles(style_dict, keys, labels=None):
-    handles = []
-    for i, key in enumerate(keys):
-        if key not in style_dict:
+# Plot 1: Cactus plot - coverage over time
+
+def plot_coverage_over_time(dfs: dict) -> None:
+    fig, ax = plt.subplots(figsize=(9, 5))
+    endpoints = []
+
+    for label, (color, linestyle, marker) in Q1_STYLES.items():
+        df = dfs.get(label)
+        if df is None:
             continue
-        s = style_dict[key]
-        h = mlines.Line2D([], [], color=s["color"], lw=s["lw"],
-                          linestyle=(0, s["dash"]) if s["dash"] else "solid",
-                          marker=s["marker"], ms=s["ms"],
-                          label=labels[i] if labels else key)
-        handles.append(h)
-    return handles
+        solved = df[df["solved"]].sort_values("time")
+        if solved.empty:
+            continue
+        times = solved["time"].values
+        counts = list(range(1, len(times) + 1))
 
+        ax.step(times, counts, where="post", color=color,
+                linewidth=0.8, linestyle=linestyle, label=label)
 
-def save(ax, path, log_x=False):
-    if log_x:
-        ax.set_xscale("log")
-        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:g}"))
-        ax.set_xlim(0.1, 350)
-        ax.grid(axis="both", alpha=0.2, lw=0.5, which="both")
-    else:
-        ax.grid(axis="both", alpha=0.2, lw=0.5)
+        ax.plot(times[::15], counts[::15], marker=marker,
+                color=color, markersize=5, linestyle="none",
+                markerfacecolor="none", markeredgewidth=1.2)
+
+        endpoints.append((times[-1], counts[-1], str(counts[-1]), color))
+
+    endpoints.sort(key=lambda e: e[1])
+    min_gap = 3
+    adjusted_y = []
+    for i, (x, y, txt, col) in enumerate(endpoints):
+        if i == 0:
+            adjusted_y.append(y)
+        else:
+            prev = adjusted_y[-1]
+            adjusted_y.append(max(y, prev + min_gap))
+    for (x, y, txt, col), ay in zip(endpoints, adjusted_y):
+        ax.annotate(
+            txt,
+            xy=(x, y),
+            xytext=(x * 1.05, ay),
+            fontsize=8,
+            color=col,
+            va="center",
+            annotation_clip=False,
+        )
+
+    ax.set_xscale("log")
+    ax.set_xlabel("Time (seconds)", fontsize=12)
+    ax.set_ylabel("Problems solved", fontsize=12)
+    ax.set_title("Coverage over time", fontsize=13, pad=12)
+    ax.set_ylim(bottom=0)
+    ax.legend(fontsize=9, framealpha=0.9, loc="lower right")
+    ax.grid(alpha=0.2, which="both")
     ax.spines[["top", "right"]].set_visible(False)
+
     plt.tight_layout()
-    plt.savefig(path, dpi=200, bbox_inches="tight")
+    plt.savefig(PLOTS_DIR / "coverage_over_time.png", dpi=200, bbox_inches="tight")
     plt.close()
+    print("Saved coverage_over_time.png")
 
 
-def plot_results_hff_landmark(dfs):
+# Plot 2: Heatmap
+
+def plot_heatmap(dfs: dict) -> None:
+    tasks_per_domain = {}
+    if "hFF" in dfs:
+        for d in DOMAINS:
+            tasks_per_domain[d] = int((dfs["hFF"]["domain"] == d).sum())
+
+    rows = {}
+    for key, display in HEATMAP_LABELS.items():
+        df = dfs.get(key)
+        if df is None:
+            continue
+        rows[display] = [
+            int(df[df["domain"] == d]["solved"].sum()) for d in DOMAINS
+        ]
+
+    matrix = pd.DataFrame(rows, index=DOMAINS).T
+
+    annot = matrix.copy().astype(object)
+    for d in DOMAINS:
+        total = tasks_per_domain.get(d, "?")
+        for label in matrix.index:
+            annot.loc[label, d] = f"{matrix.loc[label, d]}/{total}"
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.heatmap(
+        matrix,
+        annot=annot,
+        fmt="",
+        cmap="YlGn",
+        linewidths=0.5,
+        linecolor="white",
+        ax=ax,
+        cbar_kws={"label": "Problems solved"},
+        vmin=0,
+    )
+    ax.set_title(
+        "Problems solved per strategy and domain: (hFF,hLM) pair",
+        fontsize=13,
+        pad=12,
+    )
+    ax.set_xlabel("Domain", fontsize=11)
+    ax.set_ylabel("Strategy", fontsize=11)
+    ax.tick_params(axis="x", rotation=0)
+    ax.tick_params(axis="y", rotation=0)
+
+    plt.tight_layout()
+    plt.savefig(PLOTS_DIR / "heatmap.png", dpi=200, bbox_inches="tight")
+    plt.close()
+    print("Saved heatmap.png")
+
+
+# Plot 3: Coverage bar chart with runtime annotated
+
+def plot_heuristic_scaling(dfs: dict) -> None:
+    """Bar chart: coverage for each config, mean runtime shown on each bar."""
+    labels = [label for label, _ in Q3_CONFIGS]
+    colors = [color for _, color in Q3_CONFIGS]
+
+    coverage = []
+    runtimes = []
+    for label, _ in Q3_CONFIGS:
+        df = dfs.get(label)
+        if df is not None:
+            solved = df[df["solved"]]
+            coverage.append(int(df["solved"].sum()))
+            runtimes.append(solved["time"].mean())
+        else:
+            coverage.append(0)
+            runtimes.append(0.0)
+
     fig, ax = plt.subplots(figsize=(9, 5))
-    for label, style in STRATEGY_STYLE.items():
-        if label not in dfs:
-            continue
-        df = dfs[label]
-        subset = df if label == "Single (hAdd)" else df[df["heuristics"] == MAIN_PAIR]
-        solved = subset[subset["solved"] == True].sort_values("time")
-        if not solved.empty:
-            cactus(ax, solved["time"].values, label, style)
-    ax.set_xlabel("Time (seconds, log scale)", fontsize=11)
-    ax.set_ylabel("Problems solved", fontsize=11)
-    ax.set_title("Multiple heuristics (hFF + hLM) vs Single (hAdd)", fontsize=12, pad=10)
-    ax.set_ylim(bottom=0)
-    ax.legend(handles=legend_handles(STRATEGY_STYLE, list(STRATEGY_STYLE.keys())),
-              fontsize=9, framealpha=0.9, loc="upper left")
-    save(ax, PLOTS_DIR / "results_hff_landmark.png", log_x=True)
+
+    bars = ax.bar(labels, coverage, color=colors, width=0.5, zorder=3)
+
+    for bar, cov, rt in zip(bars, coverage, runtimes):
+        # Coverage value at the top of the bar
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.5,
+            str(cov),
+            ha="center", va="bottom", fontsize=11, fontweight="bold",
+        )
+        # Mean runtime inside the bar
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() / 2,
+            f"avg {rt:.1f}s",
+            ha="center", va="center", fontsize=9, color="white",
+            fontweight="bold",
+        )
+
+    ax.set_ylabel("Problems solved (out of 143)", fontsize=12)
+    ax.set_title(
+        "Does adding a third heuristic improve performance?",
+        fontsize=13, pad=12,
+    )
+    ax.set_ylim(0, 150)
+    ax.tick_params(axis="x", labelsize=10)
+    ax.grid(axis="y", alpha=0.2, zorder=0)
+    ax.spines[["top", "right"]].set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig(PLOTS_DIR / "heuristic_scaling.png", dpi=200,
+                bbox_inches="tight")
+    plt.close()
+    print("Saved heuristic_scaling.png")
 
 
-def plot_results_by_pair(dfs):
-    if "Alternation" not in dfs:
-        return
-    fig, ax = plt.subplots(figsize=(9, 5))
-    for pair in PAIRS:
-        style = PAIR_STYLE[pair]
-        solved = dfs["Alternation"][(dfs["Alternation"]["heuristics"] == pair) &
-                                    (dfs["Alternation"]["solved"] == True)].sort_values("time")
-        if not solved.empty:
-            cactus(ax, solved["time"].values, PAIR_LABELS[pair], style)
-    ax.set_xlabel("Time (seconds, log scale)", fontsize=11)
-    ax.set_ylabel("Problems solved", fontsize=11)
-    ax.set_title("Results by heuristic pair (Alternation)", fontsize=12, pad=10)
-    ax.set_ylim(bottom=0)
-    ax.legend(handles=legend_handles(PAIR_STYLE, PAIRS, [PAIR_LABELS[p] for p in PAIRS]),
-              fontsize=9, framealpha=0.9, loc="upper left")
-    save(ax, PLOTS_DIR / "results_by_pair.png", log_x=True)
+# Main
 
-
-def plot_plan_length(dfs):
-    strategies = ["Alternation", "Max", "Sum", "Pareto"]
-    x = list(range(len(PAIRS)))
-    width, offsets = 0.18, [-1.5, -0.5, 0.5, 1.5]
-    fig, ax = plt.subplots(figsize=(9, 5))
-    for label, offset in zip(strategies, offsets):
-        if label not in dfs:
-            continue
-        means = [dfs[label][(dfs[label]["heuristics"] == p) & (dfs[label]["solved"] == True)]["plan_length"].mean()
-                 for p in PAIRS]
-        ax.bar([xi + offset * width for xi in x], means, width=width,
-               color=STRATEGY_STYLE[label]["color"], label=label, zorder=3)
-    ax.set_xticks(x)
-    ax.set_xticklabels([PAIR_LABELS[p] for p in PAIRS], fontsize=9)
-    ax.set_ylabel("Mean plan length", fontsize=11)
-    ax.set_title("Plan length", fontsize=12, pad=10)
-    ax.legend(fontsize=9, framealpha=0.9)
-    save(ax, PLOTS_DIR / "plan_length.png")
-
-
-def plot_coverage_by_domain(dfs):
-    strategies = list(STRATEGY_STYLE.keys())
-    width = 0.15
-    x = list(range(len(DOMAINS)))
-    fig, ax = plt.subplots(figsize=(10, 5))
-    for i, label in enumerate(strategies):
-        if label not in dfs:
-            continue
-        df = dfs[label]
-        counts = [int((df if label == "Single (hAdd)" else df[df["heuristics"] == MAIN_PAIR])
-                      [lambda d: d["domain"] == domain]["solved"].sum())
-                  for domain in DOMAINS]
-        ax.bar([xi + (i - (len(strategies) - 1) / 2) * width for xi in x],
-               counts, width=width, color=STRATEGY_STYLE[label]["color"], label=label, zorder=3)
-    ax.set_xticks(x)
-    ax.set_xticklabels([d.capitalize() for d in DOMAINS], fontsize=10)
-    ax.set_ylabel("Problems solved", fontsize=11)
-    ax.set_title("Coverage by domain (hFF + hLM vs single hAdd)", fontsize=12, pad=10)
-    ax.legend(fontsize=9, framealpha=0.9)
-    save(ax, PLOTS_DIR / "coverage_by_domain.png")
-
-
-def plot_expansions(dfs):
-    strategies = list(STRATEGY_STYLE.keys())
-    means = []
-    for label in strategies:
-        if label not in dfs:
-            means.append(0)
-            continue
-        df = dfs[label]
-        subset = df if label == "Single (hAdd)" else df[df["heuristics"] == MAIN_PAIR]
-        solved = subset[subset["solved"] == True]
-        means.append(solved["expansions"].mean() if not solved.empty else 0)
-    fig, ax = plt.subplots(figsize=(7, 4))
-    bars = ax.bar(strategies, means, color=[STRATEGY_STYLE[l]["color"] for l in strategies],
-                  width=0.55, zorder=3)
-    for bar, val in zip(bars, means):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 50,
-                f"{int(val):,}", ha="center", va="bottom", fontsize=9)
-    ax.set_ylabel("Mean expansions", fontsize=11)
-    ax.set_title("State expansions (hFF + hLM)", fontsize=12, pad=10)
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{int(v):,}"))
-    save(ax, PLOTS_DIR / "expansions.png")
-
-
-def main():
-    dfs = load_all()
+def main() -> None:
+    dfs = load_data()
     if not dfs:
-        print("No CSVs found in experiment_results/")
+        print("No CSV files found in experiment_results/")
         sys.exit(1)
-    plot_results_hff_landmark(dfs)
-    plot_results_by_pair(dfs)
-    plot_plan_length(dfs)
-    plot_coverage_by_domain(dfs)
-    plot_expansions(dfs)
-    print(f"Plots saved to ./{PLOTS_DIR}/")
+
+    plot_coverage_over_time(dfs)
+    plot_heatmap(dfs)
+    plot_heuristic_scaling(dfs)
+    print(f"All plots saved to ./{PLOTS_DIR}/")
 
 
 if __name__ == "__main__":
