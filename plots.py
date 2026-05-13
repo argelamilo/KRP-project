@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
-"""Generate experiment plots for the multi-heuristic GBFS project.
+"""Generate experiment plots.
 
-Three plots are produced:
+Three plots are generated based on the CSV results from experiments.py:
   1. Cactus plot  - coverage over time, all strategies on hFF + hLM pair
                    with hFF and hLM as individual baselines.
   2. Heatmap      - problems solved per strategy per domain.
@@ -50,7 +49,7 @@ Q3_CONFIGS = [
 ]
 
 
-# Data loading
+# Load data
 
 
 def latest(pattern: str) -> Path | None:
@@ -88,9 +87,6 @@ def load_data() -> dict:
         dfs["Max (hAdd, hFF, hLM)"] = df3[df3["strategy"] == "max"]
 
     return dfs
-
-
-# Shared helper
 
 
 def draw_cactus(ax, times, label, color, linestyle="-"):

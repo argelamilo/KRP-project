@@ -19,10 +19,10 @@ def run_pyperplan(domain, problem, heuristics, openlist, timeout=TIME_LIMIT):
         sys.executable,
         "-m",
         "pyperplan",
-        "-s",
-        "gbfs_multi",
         "-H",
         heuristics,
+        "-s",
+        "gbfs_multi",
         "-openlist",
         openlist,
         str(domain),
@@ -43,7 +43,7 @@ def run_pyperplan(domain, problem, heuristics, openlist, timeout=TIME_LIMIT):
             match = re.search(r"Plan length:\s*(\d+)", output)
             metrics["plan_length"] = int(match.group(1)) if match else None
 
-            match = re.search(r"Expanded nodes:\s*(\d+)", output)
+            match = re.search(r"Nodes expanded:\s*(\d+)", output)
             metrics["expansions"] = int(match.group(1)) if match else None
         else:
             metrics["plan_length"] = None
